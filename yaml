@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: puppeteer-yahoo-scraper
+    env: node
+    branch: main
+    buildCommand: apt-get update && apt-get install -y chromium && npm install
+    startCommand: node app.js
+    plan: free
