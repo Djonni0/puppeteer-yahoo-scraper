@@ -18,13 +18,12 @@ app.get('/fetch', async (req, res) => {
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-web-security', // Bypass some security checks
-        '--disable-features=IsolateOrigins,site-per-process' // Reduce fingerprinting
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process'
       ],
       executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium'
     });
     const page = await browser.newPage();
-    // Enhanced stealth headers
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
@@ -50,8 +49,8 @@ app.get('/fetch', async (req, res) => {
         await page.evaluate((selector) => {
           const button = document.querySelector(selector);
           if (button) {
-            button.click(); // Try simple click first
-            button.dispatchEvent(new Event('click', { bubbles: true })); // Then event
+            button.click();
+            button.dispatchEvent(new Event('click', { bubbles: true }));
           }
         }, consentButtonSelector);
         consentClicked = true;
@@ -113,24 +112,48 @@ app.get('/fetch', async (req, res) => {
       await page.waitForSelector(tableSelector, { timeout: 60000 });
       console.log('Found table container');
 
-      const expandAllSelector = 'button[data-ylk="elm:expand;sec:qsp-financials;slk:financials-report-all"]';
-      await page.waitForSelector(expandAllSelector, { timeout: 10000 });
-      await page.click(expandAllSelector);
-      console.log('Clicked Expand All button');
+      // Click all individual expand buttons iteratively
+      let expandedCount = 0;
+      const maxLevels = 5; // Up to lv-5
+      for (let level = 0; level < maxLevels; level++) {
+        const expandButtons = await page.$$('.tableContainer.yf-9ft13 button[data-ylk^="elm:expand"]');
+        console.log(`Level ${level}: Found ${expandButtons.length} expand buttons`);
+        if (expandButtons.length === 0 && level > 0) break; // No more buttons to expand
 
-      const nestedRowSelector = '.row.lv-1';
-      await page.waitForSelector(nestedRowSelector, { timeout: 30000 });
-      console.log('Nested rows expanded successfully');
+        for (const button of expandButtons) {
+          try {
+            await button.evaluate(b => {
+              b.click();
+              b.dispatchEvent(new Event('click', { bubbles: true }));
+            });
+            expandedCount++;
+            await page.waitForTimeout(3000); // Increased wait for JS to load nested rows
+            console.log(`Clicked expand button ${expandedCount}`);
+          } catch (e) {
+            console.log(`Error clicking expand button ${expandedCount}: ${e.message}`);
+          }
+        }
+
+        // Check nested rows for this level
+        const nestedRows = await page.$$(`.row.lv-${level + 1}`);
+        console.log(`Level ${level}: Found ${nestedRows.length} lv-${level + 1} rows`);
+      }
+      console.log(`Total expanded ${expandedCount} individual buttons`);
+
+      // Wait for deepest level and verify
+      const deepestRowSelector = '.row.lv-4'; // Match "Cash" level
+      await page.waitForSelector(deepestRowSelector, { timeout: 60000, visible: true });
+      console.log('Deepest nested rows (lv-4) confirmed visible');
 
       const html = await page.content();
       console.log('Page content fetched successfully');
-      console.log('Final HTML snippet (first 500 chars):', html.substring(0, 500));
+      console.log('Final HTML snippet (first 2000 chars):', html.substring(0, 2000));
       await browser.close();
       res.send(html);
     } catch (tableError) {
       console.error('Table or expansion error:', tableError.message);
       const htmlAfterAttempt = await page.content();
-      console.log('HTML after expansion attempt (first 1000 chars):', htmlAfterAttempt.substring(0, 1000));
+      console.log('HTML after expansion attempt (first 2000 chars):', htmlAfterAttempt.substring(0, 2000));
       await browser.close();
       res.send(`Expansion failed, but here’s the HTML: ${htmlAfterAttempt}`);
     }
