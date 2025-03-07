@@ -6,7 +6,7 @@ const port = process.env.PORT || 3000;
 app.get('/fetch', async (req, res) => {
   const { ticker, dataType } = req.query;
   const urlMap = {
-    'balance': `https://finance.yahoo.com/quote/${ticker}/balance-sheet?p=${ticker}`,
+    'balance': `https://finance.yahoo.com/quote/${ticker}/balance-sheetMISCHA?p=${ticker}`,
     'income': `https://finance.yahoo.com/quote/${ticker}/financials?p=${ticker}`,
     'cash': `https://finance.yahoo.com/quote/${ticker}/cash-flow?p=${ticker}`
   };
@@ -36,6 +36,10 @@ app.get('/fetch', async (req, res) => {
       await page.click(consentButtonSelector);
       consentClicked = true;
       console.log('Clicked primary consent button: button[name="agree"]');
+      // Wait for potential navigation or content update
+      await page.waitForTimeout(5000); // Give JS time to update
+      const htmlPostClick = await page.content();
+      console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
     } catch (e) {
       console.log('Primary consent selector failed:', e.message);
       for (const selector of fallbackSelectors) {
@@ -44,6 +48,9 @@ app.get('/fetch', async (req, res) => {
           await page.click(selector);
           consentClicked = true;
           console.log(`Clicked fallback consent button: ${selector}`);
+          await page.waitForTimeout(5000);
+          const htmlPostClick = await page.content();
+          console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
           break;
         } catch (fallbackError) {
           console.log(`Fallback selector ${selector} failed:`, fallbackError.message);
@@ -64,7 +71,7 @@ app.get('/fetch', async (req, res) => {
 
     // Fetch and expand the table
     const htmlBefore = await page.content();
-    console.log('HTML after consent (first 500 chars):', htmlBefore.substring(0, 500));
+    console.log('HTML after consent attempt (first 500 chars):', htmlBefore.substring(0, 500));
 
     try {
       await page.waitForSelector('article.yf-m6gtul', { timeout: 30000 });
@@ -80,7 +87,7 @@ app.get('/fetch', async (req, res) => {
       console.log('Clicked Expand All button');
 
       // Wait for nested rows
-      const nestedRowSelector = '.row.lv-1'; // Broad selector for nested rows
+      const nestedRowSelector = '.row.lv-1';
       await page.waitForSelector(nestedRowSelector, { timeout: 30000 });
       console.log('Nested rows expanded successfully');
 
