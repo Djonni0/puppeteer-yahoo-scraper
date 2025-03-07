@@ -20,7 +20,8 @@ app.get('/fetch', async (req, res) => {
         '--disable-setuid-sandbox',
         '--disable-web-security',
         '--disable-features=IsolateOrigins,site-per-process',
-        '--disable-blink-features=AutomationControlled' // Stealth
+        '--disable-blink-features=AutomationControlled',
+        '--window-size=1920,1080' // Mimic real viewport
       ],
       executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium'
     });
@@ -30,12 +31,16 @@ app.get('/fetch', async (req, res) => {
       'Accept-Language': 'en-US,en;q=0.9',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
     });
-    // Remove automation flags
+    await page.setViewport({ width: 1920, height: 1080 });
+    // Enhanced stealth
     await page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+      window.chrome = { runtime: {} };
     });
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 }); // Extended timeout
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
     // Handle cookie consent
     const consentButtonSelector = 'button[name="agree"].accept-all';
@@ -100,7 +105,7 @@ app.get('/fetch', async (req, res) => {
 
     if (consentClicked) {
       try {
-        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }); // Extended timeout
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 });
         console.log('Consent accepted, page navigated');
       } catch (navError) {
         console.log('Navigation after consent timed out, proceeding anyway:', navError.message);
@@ -109,34 +114,17 @@ app.get('/fetch', async (req, res) => {
       console.log('No consent button worked after retries, proceeding anyway');
     }
 
-    // Wait for body to ensure page load
     await page.waitForSelector('body', { timeout: 60000 });
     console.log('Body loaded');
 
-    // Fetch and expand the table
-    const htmlBefore = await page.content();
-    console.log('HTML after consent attempt (first 500 chars):', htmlBefore.substring(0, 500));
-
     try {
       const tableSelector = '.tableContainer.yf-9ft13';
-      let tableAttempts = 0;
-      const maxTableAttempts = 2;
-      while (tableAttempts < maxTableAttempts) {
-        try {
-          await page.waitForSelector(tableSelector, { timeout: 90000 }); // Extended to 90s
-          console.log('Found table container');
-          break;
-        } catch (e) {
-          console.log(`Table attempt ${tableAttempts + 1} failed: ${e.message}`);
-          tableAttempts++;
-          await page.waitForTimeout(10000); // Wait before retry
-        }
-      }
-      if (tableAttempts >= maxTableAttempts) throw new Error('Table not found after retries');
+      await page.waitForSelector(tableSelector, { timeout: 90000 });
+      console.log('Found table container');
 
-      // Click all individual expand buttons iteratively
+      // Click all individual expand buttons with full event chain
       let expandedCount = 0;
-      const maxLevels = 5; // Up to lv-5
+      const maxLevels = 5;
       for (let level = 0; level < maxLevels; level++) {
         const expandButtons = await page.$$('.tableContainer.yf-9ft13 button[data-ylk^="elm:expand"]');
         console.log(`Level ${level}: Found ${expandButtons.length} expand buttons`);
@@ -145,12 +133,13 @@ app.get('/fetch', async (req, res) => {
         for (const button of expandButtons) {
           try {
             await button.evaluate(b => {
+              b.dispatchEvent(new Event('mousedown', { bubbles: true }));
               b.click();
-              b.dispatchEvent(new Event('click', { bubbles: true }));
+              b.dispatchEvent(new Event('mouseup', { bubbles: true }));
             });
             expandedCount++;
-            await page.waitForTimeout(3000);
-            console.log(`Clicked expand button ${expandedCount}`);
+            await page.waitForTimeout(5000); // Increased wait for JS
+            console.log(`Clicked expand button ${expandedCount} with full event chain`);
           } catch (e) {
             console.log(`Error clicking expand button ${expandedCount}: ${e.message}`);
           }
@@ -158,13 +147,20 @@ app.get('/fetch', async (req, res) => {
 
         const nestedRows = await page.$$(`.row.lv-${level + 1}`);
         console.log(`Level ${level}: Found ${nestedRows.length} lv-${level + 1} rows`);
+        if (nestedRows.length > 0) {
+          console.log(`Nested rows detected at lv-${level + 1}`);
+        }
       }
       console.log(`Total expanded ${expandedCount} individual buttons`);
 
-      // Wait for deepest level
+      // Verify deepest level
       const deepestRowSelector = '.row.lv-4';
-      await page.waitForSelector(deepestRowSelector, { timeout: 60000, visible: true });
-      console.log('Deepest nested rows (lv-4) confirmed visible');
+      try {
+        await page.waitForSelector(deepestRowSelector, { timeout: 60000, visible: true });
+        console.log('Deepest nested rows (lv-4) confirmed visible');
+      } catch (e) {
+        console.log('Deepest rows not found, proceeding with available HTML:', e.message);
+      }
 
       const html = await page.content();
       console.log('Page content fetched successfully');
