@@ -13,14 +13,19 @@ app.get('/fetch', async (req, res) => {
   const url = urlMap[dataType] || urlMap['balance'];
 
   try {
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      // Optional: Use system Chromium if available (Render might not have it)
+      executablePath: process.env.CHROMIUM_PATH || undefined
+    });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle2' });
     await page.waitForSelector('.tableContainer.yf-9ft13', { timeout: 10000 });
     await page.evaluate(() => {
       document.querySelectorAll('[data-ylk="elm:expand"]').forEach(btn => btn.click());
     });
-    await page.waitForTimeout(1000); // Wait for expanded content
+    await page.waitForTimeout(1000);
     const html = await page.content();
     await browser.close();
     res.send(html);
