@@ -22,39 +22,64 @@ app.get('/fetch', async (req, res) => {
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
     await page.goto(url, { waitUntil: 'networkidle2' });
 
-    // Handle cookie consent
-    const consentButtonSelector = 'button[name="agree"]';
+    // Handle cookie consent with retry
+    const consentButtonSelector = 'button[name="agree"].accept-all'; // Updated selector
     const fallbackSelectors = [
-      '.btn.primary',
-      'button:contains("Zustimmen")',
+      '.btn.secondary.accept-all',
+      'button:contains("Alle akzeptieren")',
       'button:contains("Accept All")',
-      'button:contains("Alle akzeptieren")'
+      'button:contains("Zustimmen")'
     ];
     let consentClicked = false;
-    try {
-      await page.waitForSelector(consentButtonSelector, { timeout: 10000 });
-      await page.click(consentButtonSelector);
-      consentClicked = true;
-      console.log('Clicked primary consent button: button[name="agree"]');
-      await page.waitForTimeout(10000); // Increase to 10s for JS update
-      const htmlPostClick = await page.content();
-      console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
-    } catch (e) {
-      console.log('Primary consent selector failed:', e.message);
-      for (const selector of fallbackSelectors) {
-        try {
-          await page.waitForSelector(selector, { timeout: 5000 });
-          await page.click(selector);
-          consentClicked = true;
-          console.log(`Clicked fallback consent button: ${selector}`);
-          await page.waitForTimeout(10000);
-          const htmlPostClick = await page.content();
-          console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
-          break;
-        } catch (fallbackError) {
-          console.log(`Fallback selector ${selector} failed:`, fallbackError.message);
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    while (!consentClicked && attempts < maxAttempts) {
+      try {
+        await page.waitForSelector(consentButtonSelector, { timeout: 10000 });
+        // Simulate a full click event
+        await page.evaluate((selector) => {
+          const button = document.querySelector(selector);
+          if (button) {
+            button.dispatchEvent(new Event('click', { bubbles: true }));
+          }
+        }, consentButtonSelector);
+        consentClicked = true;
+        console.log('Clicked primary consent button: button[name="agree"].accept-all');
+        await page.waitForTimeout(30000); // 30s for JS update
+        const htmlPostClick = await page.content();
+        console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
+        if (htmlPostClick.includes('Yahooist Teil der Yahoo Markenfamilie')) {
+          console.log('Still on consent page, retrying...');
+          consentClicked = false;
+        }
+      } catch (e) {
+        console.log('Primary consent selector failed:', e.message);
+        for (const selector of fallbackSelectors) {
+          try {
+            await page.waitForSelector(selector, { timeout: 5000 });
+            await page.evaluate((sel) => {
+              const button = document.querySelector(sel);
+              if (button) {
+                button.dispatchEvent(new Event('click', { bubbles: true }));
+              }
+            }, selector);
+            consentClicked = true;
+            console.log(`Clicked fallback consent button: ${selector}`);
+            await page.waitForTimeout(30000);
+            const htmlPostClick = await page.content();
+            console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
+            if (htmlPostClick.includes('Yahooist Teil der Yahoo Markenfamilie')) {
+              console.log('Still on consent page, retrying...');
+              consentClicked = false;
+            }
+            break;
+          } catch (fallbackError) {
+            console.log(`Fallback selector ${selector} failed:`, fallbackError.message);
+          }
         }
       }
+      attempts++;
     }
 
     if (consentClicked) {
@@ -65,7 +90,7 @@ app.get('/fetch', async (req, res) => {
         console.log('Navigation after consent timed out, proceeding anyway:', navError.message);
       }
     } else {
-      console.log('No consent button found, proceeding anyway');
+      console.log('No consent button worked after retries, proceeding anyway');
     }
 
     // Fetch and expand the table
@@ -74,7 +99,7 @@ app.get('/fetch', async (req, res) => {
 
     try {
       const tableSelector = '.tableContainer.yf-9ft13';
-      await page.waitForSelector(tableSelector, { timeout: 60000 }); // Increase to 60s
+      await page.waitForSelector(tableSelector, { timeout: 60000 });
       console.log('Found table container');
 
       // Click "Expand All" button
@@ -96,7 +121,7 @@ app.get('/fetch', async (req, res) => {
     } catch (tableError) {
       console.error('Table or expansion error:', tableError.message);
       const htmlAfterAttempt = await page.content();
-      console.log('HTML after expansion attempt (first 1000 chars):', htmlAfterAttempt.substring(0, 1000)); // More context
+      console.log('HTML after expansion attempt (first 1000 chars):', htmlAfterAttempt.substring(0, 1000));
       await browser.close();
       res.send(`Expansion failed, but here’s the HTML: ${htmlAfterAttempt}`);
     }
