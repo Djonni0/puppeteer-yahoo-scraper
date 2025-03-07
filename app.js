@@ -23,19 +23,43 @@ app.get('/fetch', async (req, res) => {
     await page.goto(url, { waitUntil: 'networkidle2' });
 
     // Handle cookie consent
-    const consentButtonSelector = 'button[name="agree"], button[value="agree"], button:contains("Accept"), button:contains("Zustimmen")';
+    const consentButtonSelector = 'button[name="agree"]'; // Primary target
+    const fallbackSelectors = [
+      '.btn.primary',
+      'button:contains("Zustimmen")',
+      'button:contains("Accept All")',
+      'button:contains("Alle akzeptieren")'
+    ];
+    let consentClicked = false;
     try {
-      await page.waitForSelector(consentButtonSelector, { timeout: 5000 });
+      await page.waitForSelector(consentButtonSelector, { timeout: 10000 });
       await page.click(consentButtonSelector);
-      console.log('Clicked consent button');
-      await page.waitForNavigation({ waitUntil: 'networkidle2' }); // Wait for page to load after consent
-    } catch (consentError) {
-      console.log('No consent prompt found or already passed:', consentError.message);
+      consentClicked = true;
+    } catch (e) {
+      console.log('Primary consent selector failed:', e.message);
+      for (const selector of fallbackSelectors) {
+        try {
+          await page.waitForSelector(selector, { timeout: 5000 });
+          await page.click(selector);
+          consentClicked = true;
+          console.log(`Clicked fallback consent button: ${selector}`);
+          break;
+        } catch (fallbackError) {
+          console.log(`Fallback selector ${selector} failed:`, fallbackError.message);
+        }
+      }
     }
 
-    // Now wait for the table
+    if (consentClicked) {
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 });
+      console.log('Consent accepted, page navigated');
+    } else {
+      console.log('No consent button found, proceeding anyway');
+    }
+
+    // Fetch the table
     const htmlBefore = await page.content();
-    console.log('HTML before selector (first 500 chars):', htmlBefore.substring(0, 500));
+    console.log('HTML after consent (first 500 chars):', htmlBefore.substring(0, 500));
     await page.waitForSelector('.tableContainer.yf-9ft13', { timeout: 30000 });
     await page.evaluate(() => {
       document.querySelectorAll('[data-ylk="elm:expand"]').forEach(btn => btn.click());
