@@ -62,19 +62,27 @@ app.get('/fetch', async (req, res) => {
       console.log('No consent button found, proceeding anyway');
     }
 
-    // Expand nested rows
-    const expandButtonSelector = '[data-test="fin-row-expand-icon"]'; // Updated selector
-    await page.waitForSelector('.tableContainer.yf-9ft13', { timeout: 30000 });
-    await page.evaluate((selector) => {
-      document.querySelectorAll(selector).forEach(btn => btn.click());
-    }, expandButtonSelector);
-    await page.waitForSelector('.row.lv-1.yf-t22klz', { timeout: 10000 }); // Wait for nested rows
-    console.log('Nested rows expanded');
+    // Debug HTML post-consent
+    const htmlBefore = await page.content();
+    console.log('HTML after consent (first 500 chars):', htmlBefore.substring(0, 500));
 
-    const html = await page.content();
-    console.log('Page content fetched successfully');
-    await browser.close();
-    res.send(html);
+    // Try to fetch the table
+    try {
+      await page.waitForSelector('.tableContainer.yf-9ft13', { timeout: 30000 });
+      await page.evaluate(() => {
+        document.querySelectorAll('[data-test="fin-row-expand-icon"]').forEach(btn => btn.click());
+      });
+      await page.waitForSelector('.row.lv-1.yf-t22klz', { timeout: 10000 });
+      console.log('Nested rows expanded');
+      const html = await page.content();
+      console.log('Page content fetched successfully');
+      await browser.close();
+      res.send(html);
+    } catch (tableError) {
+      console.error('Table selector error:', tableError.message);
+      await browser.close();
+      res.send(`Table selector failed, but here’s the HTML: ${htmlBefore}`);
+    }
   } catch (e) {
     console.error('Error fetching page:', e.message);
     res.status(500).send(`Error: ${e.message}`);
