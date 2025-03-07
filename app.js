@@ -19,7 +19,8 @@ app.get('/fetch', async (req, res) => {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process'
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-blink-features=AutomationControlled' // Stealth
       ],
       executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium'
     });
@@ -29,7 +30,12 @@ app.get('/fetch', async (req, res) => {
       'Accept-Language': 'en-US,en;q=0.9',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
     });
-    await page.goto(url, { waitUntil: 'networkidle2' });
+    // Remove automation flags
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    });
+
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 }); // Extended timeout
 
     // Handle cookie consent
     const consentButtonSelector = 'button[name="agree"].accept-all';
@@ -94,7 +100,7 @@ app.get('/fetch', async (req, res) => {
 
     if (consentClicked) {
       try {
-        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }); // Extended timeout
         console.log('Consent accepted, page navigated');
       } catch (navError) {
         console.log('Navigation after consent timed out, proceeding anyway:', navError.message);
@@ -103,14 +109,30 @@ app.get('/fetch', async (req, res) => {
       console.log('No consent button worked after retries, proceeding anyway');
     }
 
+    // Wait for body to ensure page load
+    await page.waitForSelector('body', { timeout: 60000 });
+    console.log('Body loaded');
+
     // Fetch and expand the table
     const htmlBefore = await page.content();
     console.log('HTML after consent attempt (first 500 chars):', htmlBefore.substring(0, 500));
 
     try {
       const tableSelector = '.tableContainer.yf-9ft13';
-      await page.waitForSelector(tableSelector, { timeout: 60000 });
-      console.log('Found table container');
+      let tableAttempts = 0;
+      const maxTableAttempts = 2;
+      while (tableAttempts < maxTableAttempts) {
+        try {
+          await page.waitForSelector(tableSelector, { timeout: 90000 }); // Extended to 90s
+          console.log('Found table container');
+          break;
+        } catch (e) {
+          console.log(`Table attempt ${tableAttempts + 1} failed: ${e.message}`);
+          tableAttempts++;
+          await page.waitForTimeout(10000); // Wait before retry
+        }
+      }
+      if (tableAttempts >= maxTableAttempts) throw new Error('Table not found after retries');
 
       // Click all individual expand buttons iteratively
       let expandedCount = 0;
@@ -118,7 +140,7 @@ app.get('/fetch', async (req, res) => {
       for (let level = 0; level < maxLevels; level++) {
         const expandButtons = await page.$$('.tableContainer.yf-9ft13 button[data-ylk^="elm:expand"]');
         console.log(`Level ${level}: Found ${expandButtons.length} expand buttons`);
-        if (expandButtons.length === 0 && level > 0) break; // No more buttons to expand
+        if (expandButtons.length === 0 && level > 0) break;
 
         for (const button of expandButtons) {
           try {
@@ -127,21 +149,20 @@ app.get('/fetch', async (req, res) => {
               b.dispatchEvent(new Event('click', { bubbles: true }));
             });
             expandedCount++;
-            await page.waitForTimeout(3000); // Increased wait for JS to load nested rows
+            await page.waitForTimeout(3000);
             console.log(`Clicked expand button ${expandedCount}`);
           } catch (e) {
             console.log(`Error clicking expand button ${expandedCount}: ${e.message}`);
           }
         }
 
-        // Check nested rows for this level
         const nestedRows = await page.$$(`.row.lv-${level + 1}`);
         console.log(`Level ${level}: Found ${nestedRows.length} lv-${level + 1} rows`);
       }
       console.log(`Total expanded ${expandedCount} individual buttons`);
 
-      // Wait for deepest level and verify
-      const deepestRowSelector = '.row.lv-4'; // Match "Cash" level
+      // Wait for deepest level
+      const deepestRowSelector = '.row.lv-4';
       await page.waitForSelector(deepestRowSelector, { timeout: 60000, visible: true });
       console.log('Deepest nested rows (lv-4) confirmed visible');
 
