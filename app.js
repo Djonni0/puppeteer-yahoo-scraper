@@ -23,7 +23,7 @@ app.get('/fetch', async (req, res) => {
     await page.goto(url, { waitUntil: 'networkidle2' });
 
     // Handle cookie consent
-    const consentButtonSelector = 'button[name="agree"]'; // Primary target
+    const consentButtonSelector = 'button[name="agree"]';
     const fallbackSelectors = [
       '.btn.primary',
       'button:contains("Zustimmen")',
@@ -35,6 +35,7 @@ app.get('/fetch', async (req, res) => {
       await page.waitForSelector(consentButtonSelector, { timeout: 10000 });
       await page.click(consentButtonSelector);
       consentClicked = true;
+      console.log('Clicked primary consent button: button[name="agree"]');
     } catch (e) {
       console.log('Primary consent selector failed:', e.message);
       for (const selector of fallbackSelectors) {
@@ -51,8 +52,12 @@ app.get('/fetch', async (req, res) => {
     }
 
     if (consentClicked) {
-      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 });
-      console.log('Consent accepted, page navigated');
+      try {
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }); // Increase to 30s
+        console.log('Consent accepted, page navigated');
+      } catch (navError) {
+        console.log('Navigation after consent timed out, proceeding anyway:', navError.message);
+      }
     } else {
       console.log('No consent button found, proceeding anyway');
     }
