@@ -14,10 +14,9 @@ app.get('/fetch', async (req, res) => {
 
   try {
     const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      // Optional: Use system Chromium if available (Render might not have it)
-      executablePath: process.env.CHROMIUM_PATH || undefined
+      headless: 'new', // Use new headless mode
+      args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Render
+      // Let Puppeteer use its bundled Chromium
     });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle2' });
@@ -34,4 +33,4 @@ app.get('/fetch', async (req, res) => {
   }
 });
 
-app.listen(port, () => console.log(`Listening on port ${port}`));
+app.listen(port, ()
