@@ -62,46 +62,32 @@ app.get('/fetch', async (req, res) => {
       console.log('No consent button found, proceeding anyway');
     }
 
-    // Debug HTML post-consent
+    // Fetch and expand the table
     const htmlBefore = await page.content();
     console.log('HTML after consent (first 500 chars):', htmlBefore.substring(0, 500));
 
-    // Fetch the table using article as a container
     try {
       await page.waitForSelector('article.yf-m6gtul', { timeout: 30000 });
       console.log('Found article.yf-m6gtul');
-      const tableSelector = 'article.yf-m6gtul .tableContainer.yf-9ft13'; // Nested table
+      const tableSelector = 'article.yf-m6gtul .tableContainer.yf-9ft13';
       await page.waitForSelector(tableSelector, { timeout: 30000 });
       console.log('Found table container');
 
-      // Expand nested rows
-      await page.evaluate(() => {
-        document.querySelectorAll('[data-test="fin-row-expand-icon"]').forEach(btn => btn.click());
-      });
-      console.log('Clicked expand buttons');
+      // Click "Expand All" button
+      const expandAllSelector = 'button[data-ylk="elm:expand;sec:qsp-financials;slk:financials-report-all"]';
+      await page.waitForSelector(expandAllSelector, { timeout: 10000 });
+      await page.click(expandAllSelector);
+      console.log('Clicked Expand All button');
 
-      // Wait for nested rows with broader selector
-      const nestedRowSelector = '.row.lv-1'; // Broader to catch variations
+      // Wait for nested rows
+      const nestedRowSelector = '.row.lv-1'; // Broad selector for nested rows
       await page.waitForSelector(nestedRowSelector, { timeout: 30000 });
-      console.log('Nested rows expanded');
+      console.log('Nested rows expanded successfully');
 
       const html = await page.content();
       console.log('Page content fetched successfully');
       await browser.close();
       res.send(html);
     } catch (tableError) {
-      console.error('Table or nested row error:', tableError.message);
-      const htmlAfterAttempt = await page.content();
-      console.log('HTML after attempt (first 500 chars):', htmlAfterAttempt.substring(0, 500));
-      await browser.close();
-      res.send(`Table/nested rows failed, but here’s the HTML: ${htmlAfterAttempt}`);
-    }
-  } catch (e) {
-    console.error('Error fetching page:', e.message);
-    res.status(500).send(`Error: ${e.message}`);
-  }
-});
-
-app.listen(port, () => {
-  console.log(`Listening on port ${port}`);
-});
+      console.error('Table or expansion error:', tableError.message);
+      const htmlAfterAttempt = await page
