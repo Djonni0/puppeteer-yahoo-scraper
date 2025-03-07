@@ -53,7 +53,7 @@ app.get('/fetch', async (req, res) => {
 
     if (consentClicked) {
       try {
-        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }); // Increase to 30s
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
         console.log('Consent accepted, page navigated');
       } catch (navError) {
         console.log('Navigation after consent timed out, proceeding anyway:', navError.message);
@@ -62,14 +62,15 @@ app.get('/fetch', async (req, res) => {
       console.log('No consent button found, proceeding anyway');
     }
 
-    // Fetch the table
-    const htmlBefore = await page.content();
-    console.log('HTML after consent (first 500 chars):', htmlBefore.substring(0, 500));
+    // Expand nested rows
+    const expandButtonSelector = '[data-test="fin-row-expand-icon"]'; // Updated selector
     await page.waitForSelector('.tableContainer.yf-9ft13', { timeout: 30000 });
-    await page.evaluate(() => {
-      document.querySelectorAll('[data-ylk="elm:expand"]').forEach(btn => btn.click());
-    });
-    await page.waitForTimeout(2000);
+    await page.evaluate((selector) => {
+      document.querySelectorAll(selector).forEach(btn => btn.click());
+    }, expandButtonSelector);
+    await page.waitForSelector('.row.lv-1.yf-t22klz', { timeout: 10000 }); // Wait for nested rows
+    console.log('Nested rows expanded');
+
     const html = await page.content();
     console.log('Page content fetched successfully');
     await browser.close();
