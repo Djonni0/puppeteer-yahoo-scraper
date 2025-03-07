@@ -36,7 +36,7 @@ app.get('/fetch', async (req, res) => {
       await page.click(consentButtonSelector);
       consentClicked = true;
       console.log('Clicked primary consent button: button[name="agree"]');
-      await page.waitForTimeout(5000); // Give JS time to update
+      await page.waitForTimeout(10000); // Increase to 10s for JS update
       const htmlPostClick = await page.content();
       console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
     } catch (e) {
@@ -47,7 +47,7 @@ app.get('/fetch', async (req, res) => {
           await page.click(selector);
           consentClicked = true;
           console.log(`Clicked fallback consent button: ${selector}`);
-          await page.waitForTimeout(5000);
+          await page.waitForTimeout(10000);
           const htmlPostClick = await page.content();
           console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
           break;
@@ -74,7 +74,7 @@ app.get('/fetch', async (req, res) => {
 
     try {
       const tableSelector = '.tableContainer.yf-9ft13';
-      await page.waitForSelector(tableSelector, { timeout: 30000 });
+      await page.waitForSelector(tableSelector, { timeout: 60000 }); // Increase to 60s
       console.log('Found table container');
 
       // Click "Expand All" button
@@ -90,12 +90,13 @@ app.get('/fetch', async (req, res) => {
 
       const html = await page.content();
       console.log('Page content fetched successfully');
+      console.log('Final HTML snippet (first 500 chars):', html.substring(0, 500));
       await browser.close();
       res.send(html);
     } catch (tableError) {
       console.error('Table or expansion error:', tableError.message);
       const htmlAfterAttempt = await page.content();
-      console.log('HTML after expansion attempt (first 500 chars):', htmlAfterAttempt.substring(0, 500));
+      console.log('HTML after expansion attempt (first 1000 chars):', htmlAfterAttempt.substring(0, 1000)); // More context
       await browser.close();
       res.send(`Expansion failed, but here’s the HTML: ${htmlAfterAttempt}`);
     }
