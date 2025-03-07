@@ -6,7 +6,7 @@ const port = process.env.PORT || 3000;
 app.get('/fetch', async (req, res) => {
   const { ticker, dataType } = req.query;
   const urlMap = {
-    'balance': `https://finance.yahoo.com/quote/${ticker}/balance-sheetMISCHA?p=${ticker}`,
+    'balance': `https://finance.yahoo.com/quote/${ticker}/balance-sheet?p=${ticker}`,
     'income': `https://finance.yahoo.com/quote/${ticker}/financials?p=${ticker}`,
     'cash': `https://finance.yahoo.com/quote/${ticker}/cash-flow?p=${ticker}`
   };
@@ -36,7 +36,6 @@ app.get('/fetch', async (req, res) => {
       await page.click(consentButtonSelector);
       consentClicked = true;
       console.log('Clicked primary consent button: button[name="agree"]');
-      // Wait for potential navigation or content update
       await page.waitForTimeout(5000); // Give JS time to update
       const htmlPostClick = await page.content();
       console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
@@ -74,9 +73,7 @@ app.get('/fetch', async (req, res) => {
     console.log('HTML after consent attempt (first 500 chars):', htmlBefore.substring(0, 500));
 
     try {
-      await page.waitForSelector('article.yf-m6gtul', { timeout: 30000 });
-      console.log('Found article.yf-m6gtul');
-      const tableSelector = 'article.yf-m6gtul .tableContainer.yf-9ft13';
+      const tableSelector = '.tableContainer.yf-9ft13';
       await page.waitForSelector(tableSelector, { timeout: 30000 });
       console.log('Found table container');
 
