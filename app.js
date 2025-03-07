@@ -14,9 +14,9 @@ app.get('/fetch', async (req, res) => {
 
   try {
     const browser = await puppeteer.launch({
-      headless: 'new', // Use new headless mode
-      args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Render
-      // Let Puppeteer use its bundled Chromium
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium'
     });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle2' });
