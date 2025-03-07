@@ -15,15 +15,25 @@ app.get('/fetch', async (req, res) => {
   try {
     const browser = await puppeteer.launch({
       headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-web-security', // Bypass some security checks
+        '--disable-features=IsolateOrigins,site-per-process' // Reduce fingerprinting
+      ],
       executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium'
     });
     const page = await browser.newPage();
+    // Enhanced stealth headers
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+    });
     await page.goto(url, { waitUntil: 'networkidle2' });
 
-    // Handle cookie consent with retry
-    const consentButtonSelector = 'button[name="agree"].accept-all'; // Updated selector
+    // Handle cookie consent
+    const consentButtonSelector = 'button[name="agree"].accept-all';
     const fallbackSelectors = [
       '.btn.secondary.accept-all',
       'button:contains("Alle akzeptieren")',
@@ -37,16 +47,16 @@ app.get('/fetch', async (req, res) => {
     while (!consentClicked && attempts < maxAttempts) {
       try {
         await page.waitForSelector(consentButtonSelector, { timeout: 10000 });
-        // Simulate a full click event
         await page.evaluate((selector) => {
           const button = document.querySelector(selector);
           if (button) {
-            button.dispatchEvent(new Event('click', { bubbles: true }));
+            button.click(); // Try simple click first
+            button.dispatchEvent(new Event('click', { bubbles: true })); // Then event
           }
         }, consentButtonSelector);
         consentClicked = true;
         console.log('Clicked primary consent button: button[name="agree"].accept-all');
-        await page.waitForTimeout(30000); // 30s for JS update
+        await page.waitForTimeout(30000);
         const htmlPostClick = await page.content();
         console.log('HTML post-consent click (first 500 chars):', htmlPostClick.substring(0, 500));
         if (htmlPostClick.includes('Yahooist Teil der Yahoo Markenfamilie')) {
@@ -61,6 +71,7 @@ app.get('/fetch', async (req, res) => {
             await page.evaluate((sel) => {
               const button = document.querySelector(sel);
               if (button) {
+                button.click();
                 button.dispatchEvent(new Event('click', { bubbles: true }));
               }
             }, selector);
@@ -102,13 +113,11 @@ app.get('/fetch', async (req, res) => {
       await page.waitForSelector(tableSelector, { timeout: 60000 });
       console.log('Found table container');
 
-      // Click "Expand All" button
       const expandAllSelector = 'button[data-ylk="elm:expand;sec:qsp-financials;slk:financials-report-all"]';
       await page.waitForSelector(expandAllSelector, { timeout: 10000 });
       await page.click(expandAllSelector);
       console.log('Clicked Expand All button');
 
-      // Wait for nested rows
       const nestedRowSelector = '.row.lv-1';
       await page.waitForSelector(nestedRowSelector, { timeout: 30000 });
       console.log('Nested rows expanded successfully');
