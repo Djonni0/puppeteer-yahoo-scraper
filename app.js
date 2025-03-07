@@ -32,7 +32,7 @@ app.get('/fetch', async (req, res) => {
     console.log('Page content fetched successfully');
     await browser.close();
     res.send(html);
-  } catchopat (e) {
+  } catch (e) {
     console.error('Error fetching page:', e.message);
     res.status(500).send(`Error: ${e.message}`);
   }
