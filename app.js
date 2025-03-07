@@ -66,22 +66,35 @@ app.get('/fetch', async (req, res) => {
     const htmlBefore = await page.content();
     console.log('HTML after consent (first 500 chars):', htmlBefore.substring(0, 500));
 
-    // Try to fetch the table
+    // Fetch the table using article as a container
     try {
-      await page.waitForSelector('.tableContainer.yf-9ft13', { timeout: 30000 });
+      await page.waitForSelector('article.yf-m6gtul', { timeout: 30000 });
+      console.log('Found article.yf-m6gtul');
+      const tableSelector = 'article.yf-m6gtul .tableContainer.yf-9ft13'; // Nested table
+      await page.waitForSelector(tableSelector, { timeout: 30000 });
+      console.log('Found table container');
+
+      // Expand nested rows
       await page.evaluate(() => {
         document.querySelectorAll('[data-test="fin-row-expand-icon"]').forEach(btn => btn.click());
       });
-      await page.waitForSelector('.row.lv-1.yf-t22klz', { timeout: 10000 });
+      console.log('Clicked expand buttons');
+
+      // Wait for nested rows with broader selector
+      const nestedRowSelector = '.row.lv-1'; // Broader to catch variations
+      await page.waitForSelector(nestedRowSelector, { timeout: 30000 });
       console.log('Nested rows expanded');
+
       const html = await page.content();
       console.log('Page content fetched successfully');
       await browser.close();
       res.send(html);
     } catch (tableError) {
-      console.error('Table selector error:', tableError.message);
+      console.error('Table or nested row error:', tableError.message);
+      const htmlAfterAttempt = await page.content();
+      console.log('HTML after attempt (first 500 chars):', htmlAfterAttempt.substring(0, 500));
       await browser.close();
-      res.send(`Table selector failed, but here’s the HTML: ${htmlBefore}`);
+      res.send(`Table/nested rows failed, but here’s the HTML: ${htmlAfterAttempt}`);
     }
   } catch (e) {
     console.error('Error fetching page:', e.message);
