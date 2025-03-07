@@ -90,4 +90,17 @@ app.get('/fetch', async (req, res) => {
       res.send(html);
     } catch (tableError) {
       console.error('Table or expansion error:', tableError.message);
-      const htmlAfterAttempt = await page
+      const htmlAfterAttempt = await page.content();
+      console.log('HTML after expansion attempt (first 500 chars):', htmlAfterAttempt.substring(0, 500));
+      await browser.close();
+      res.send(`Expansion failed, but here’s the HTML: ${htmlAfterAttempt}`);
+    }
+  } catch (e) {
+    console.error('Error fetching page:', e.message);
+    res.status(500).send(`Error: ${e.message}`);
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Listening on port ${port}`);
+});
