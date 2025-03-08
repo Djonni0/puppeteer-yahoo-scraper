@@ -1,7 +1,7 @@
 const express = require('express');
 const puppeteer = require('puppeteer');
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 10000;
 
 app.get('/fetch', async (req, res) => {
   const { ticker, dataType } = req.query;
@@ -12,18 +12,19 @@ app.get('/fetch', async (req, res) => {
   };
   const url = urlMap[dataType] || urlMap['balance'];
 
+  let browser;
   try {
-    const browser = await puppeteer.launch({
+    browser = await puppeteer.launch({
       headless: 'new',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-web-security',
         '--disable-features=IsolateOrigins,site-per-process',
-        '--disable-blink-features=AutomationControlled',
-        '--window-size=1920,1080' // Mimic real viewport
+        '--disable-blink-features=AutomationControlled'
       ],
-      executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium'
+      executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
+      protocolTimeout: 60000 // Increase to 60s
     });
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
@@ -31,8 +32,7 @@ app.get('/fetch', async (req, res) => {
       'Accept-Language': 'en-US,en;q=0.9',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
     });
-    await page.setViewport({ width: 1920, height: 1080 });
-    // Enhanced stealth
+    await page.setViewport({ width: 1280, height: 800 }); // Smaller viewport
     await page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
       Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
@@ -40,7 +40,17 @@ app.get('/fetch', async (req, res) => {
       window.chrome = { runtime: {} };
     });
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+    let pageLoaded = false;
+    for (let attempt = 0; attempt < 2 && !pageLoaded; attempt++) {
+      try {
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        pageLoaded = true;
+      } catch (e) {
+        console.log(`Page load attempt ${attempt + 1} failed: ${e.message}`);
+        await page.waitForTimeout(5000); // Wait before retry
+      }
+    }
+    if (!pageLoaded) throw new Error('Failed to load page after retries');
 
     // Handle cookie consent
     const consentButtonSelector = 'button[name="agree"].accept-all';
@@ -122,7 +132,7 @@ app.get('/fetch', async (req, res) => {
       await page.waitForSelector(tableSelector, { timeout: 90000 });
       console.log('Found table container');
 
-      // Click all individual expand buttons with full event chain
+      // Click all individual expand buttons
       let expandedCount = 0;
       const maxLevels = 5;
       for (let level = 0; level < maxLevels; level++) {
@@ -138,7 +148,7 @@ app.get('/fetch', async (req, res) => {
               b.dispatchEvent(new Event('mouseup', { bubbles: true }));
             });
             expandedCount++;
-            await page.waitForTimeout(5000); // Increased wait for JS
+            await page.waitForTimeout(5000);
             console.log(`Clicked expand button ${expandedCount} with full event chain`);
           } catch (e) {
             console.log(`Error clicking expand button ${expandedCount}: ${e.message}`);
@@ -147,13 +157,9 @@ app.get('/fetch', async (req, res) => {
 
         const nestedRows = await page.$$(`.row.lv-${level + 1}`);
         console.log(`Level ${level}: Found ${nestedRows.length} lv-${level + 1} rows`);
-        if (nestedRows.length > 0) {
-          console.log(`Nested rows detected at lv-${level + 1}`);
-        }
       }
       console.log(`Total expanded ${expandedCount} individual buttons`);
 
-      // Verify deepest level
       const deepestRowSelector = '.row.lv-4';
       try {
         await page.waitForSelector(deepestRowSelector, { timeout: 60000, visible: true });
@@ -177,6 +183,8 @@ app.get('/fetch', async (req, res) => {
   } catch (e) {
     console.error('Error fetching page:', e.message);
     res.status(500).send(`Error: ${e.message}`);
+  } finally {
+    if (browser) await browser.close();
   }
 });
 
