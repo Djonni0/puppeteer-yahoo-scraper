@@ -15,8 +15,12 @@ app.get('/fetch', async (req, res) => {
   const url = urlMap[dataType] || urlMap['balance'];
 
   try {
+    console.log(`Fetching data from: ${url}`);
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      console.error(`HTTP error! status: ${response.status}, text: ${await response.text()}`);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const data = await response.json();
 
     if (!data || data.length === 0) {
