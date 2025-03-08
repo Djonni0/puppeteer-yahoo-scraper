@@ -29,8 +29,8 @@ app.get('/fetch', async (req, res) => {
       return;
     }
 
-    // Build HTML table
-    let output = '<table border="1"><tr><th>Breakdown</th>';
+    // Build HTML table with proper capitalization
+    let output = '<html><body><table border="1"><tr><th>Breakdown</th>';
     const dates = data.map(item => item.date).reverse();
     dates.forEach(date => output += `<th>${date}</th>`);
     output += '</tr>';
@@ -46,14 +46,18 @@ app.get('/fetch', async (req, res) => {
     });
 
     Object.entries(metrics).forEach(([key, { values }]) => {
-      output += `<tr><td>${key.replace(/([A-Z])/g, ' $1').trim()}</td>`;
+      const title = key.replace(/([A-Z])/g, ' $1').trim()
+        .replace(/\b\w/g, c => c.toUpperCase()); // Capitalize each word
+      output += `<tr><td>${title}</td>`;
       values.reverse().forEach(value => output += `<td>${value.toLocaleString()}</td>`);
       output += '</tr>';
     });
-    output += '</table>';
+    output += '</table></body></html>';
 
     console.log('Generated table from FMP API data');
     console.log('Sample output (first 500 chars):', output.substring(0, 500));
+    
+    res.set('Content-Type', 'text/html');
     res.send(output);
   } catch (e) {
     console.error('Error fetching data from FMP:', e.message);
