@@ -59,7 +59,7 @@ docker build -t puppeteer-yahoo-scraper .
 Run the Docker Container
 ```
 docker run -p 3000:3000 puppeteer-yahoo-scraper
-
+```
 Endpoints
 ```
 /fetch
