@@ -3,7 +3,8 @@ const fetch = require('node-fetch');
 const app = express();
 const port = process.env.PORT || 10000;
 
-const FMP_API_KEY = 'e2evLu4fXTkEU8AQxCd6wX3zRPVal7Cx';
+// Fetch the API key from environment variables
+const FMP_API_KEY = process.env.FMP_API_KEY;
 
 app.get('/fetch', async (req, res) => {
   const { ticker } = req.query; // No dataType needed, fetching all
