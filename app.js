@@ -3,21 +3,20 @@ const fetch = require('node-fetch');
 const app = express();
 const port = process.env.PORT || 10000;
 
-// Retrieve API key from environment variables
 const FMP_API_KEY = process.env.FMP_API_KEY;
 
 if (!FMP_API_KEY) {
   console.error('FMP_API_KEY environment variable is missing!');
-  process.exit(1); // Exit the app if the API key is not found
+  process.exit(1);
 }
 
 app.get('/fetch', async (req, res) => {
-  const { ticker, categories } = req.query; // Get ticker and categories from query parameters
+  const { ticker, categories } = req.query;
 
   // Default to all categories if none are provided
   const requestedCategories = categories ? categories.split(',') : ['balance', 'income', 'cash', 'ratios'];
 
-  // Define the URLs for financial data (including ratios)
+  // Define API URLs
   const urls = {
     balance: `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?apikey=${FMP_API_KEY}`,
     income: `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?apikey=${FMP_API_KEY}`,
@@ -26,72 +25,55 @@ app.get('/fetch', async (req, res) => {
   };
 
   try {
-    // Initialize an empty object to store the results
     const results = {};
 
-    // Fetch only the requested categories
+    // Fetch only requested categories
     for (const category of requestedCategories) {
       if (urls[category]) {
         console.log(`Fetching ${category} data from: ${urls[category]}`);
         const response = await fetch(urls[category]);
         if (!response.ok) {
           console.error(`HTTP error for ${category}! status: ${response.status}`);
-          results[category] = []; // If there's an error, set the category to empty array
+          results[category] = [];
         } else {
           const data = await response.json();
-          results[category] = data.length > 0 ? data : []; // Store the fetched data or empty array if no data
+          results[category] = data.length > 0 ? data : [];
         }
       }
     }
 
-    // Build combined HTML output for requested categories
-    let output = '<html><body>';
-    
-    // Loop through the requested categories and generate the output
-    for (const category of requestedCategories) {
-      const data = results[category];
+    // Process financial ratios if requested
+    if (requestedCategories.includes("value") || requestedCategories.includes("growth")) {
+      const ratiosData = results.ratios[0]; // Get the most recent ratios data
+      let output = `<h2>Stock Analysis (${ticker})</h2><table border="1"><tr><th>Metric</th><th>Value</th></tr>`;
 
-      if (data && data.length === 0) {
-        output += `<h2>${category.charAt(0).toUpperCase() + category.slice(1)} Statement</h2><p>No data available</p>`;
-        continue;
+      if (requestedCategories.includes("value")) {
+        output += `<h3>Buffett Investing Style</h3>`;
+        output += `<tr><td>P/E Ratio</td><td>${ratiosData.priceEarningsRatio || "N/A"}</td></tr>`;
+        output += `<tr><td>P/B Ratio</td><td>${ratiosData.priceBookValueRatio || "N/A"}</td></tr>`;
+        output += `<tr><td>ROE (%)</td><td>${(ratiosData.returnOnEquity * 100).toFixed(2) || "N/A"}%</td></tr>`;
+        output += `<tr><td>ROIC (%)</td><td>${(ratiosData.returnOnInvestedCapital * 100).toFixed(2) || "N/A"}%</td></tr>`;
+        output += `<tr><td>Debt-to-Equity</td><td>${ratiosData.debtEquityRatio || "N/A"}</td></tr>`;
       }
 
-      output += `<h2>${category.charAt(0).toUpperCase() + category.slice(1)} Statement</h2>`;
-      output += `<table border="1" id="${category}"><tr><th>Breakdown</th>`;
-      const dates = data.map(item => item.date).reverse();
-      dates.forEach(date => output += `<th>${date}</th>`);
-      output += '</tr>';
+      if (requestedCategories.includes("growth")) {
+        output += `<h3>Growth Investing Style</h3>`;
+        output += `<tr><td>Revenue Growth (%)</td><td>${(ratiosData.revenueGrowth * 100).toFixed(2) || "N/A"}%</td></tr>`;
+        output += `<tr><td>EPS Growth (%)</td><td>${(ratiosData.epsgrowth * 100).toFixed(2) || "N/A"}%</td></tr>`;
+        output += `<tr><td>Gross Margin (%)</td><td>${(ratiosData.grossProfitMargin * 100).toFixed(2) || "N/A"}%</td></tr>`;
+        output += `<tr><td>P/S Ratio</td><td>${ratiosData.priceToSalesRatio || "N/A"}</td></tr>`;
+        output += `<tr><td>EV/EBITDA</td><td>${ratiosData.enterpriseValueOverEBITDA || "N/A"}</td></tr>`;
+      }
 
-      const metrics = {};
-      data.forEach(statement => {
-        Object.entries(statement).forEach(([key, value]) => {
-          if (typeof value === 'number' && key !== 'cik' && !key.includes('link')) {
-            metrics[key] = metrics[key] || { values: [] };
-            metrics[key].values.push(value);
-          }
-        });
-      });
-
-      Object.entries(metrics).forEach(([key, { values }]) => {
-        const title = key.replace(/([A-Z])/g, ' $1').trim()
-          .replace(/\b\w/g, c => c.toUpperCase());
-        output += `<tr><td>${title}</td>`;
-        values.reverse().forEach(value => output += `<td>${value.toLocaleString()}</td>`);
-        output += '</tr>';
-      });
-      output += '</table>';
+      output += `</table>`;
+      res.set('Content-Type', 'text/html');
+      return res.send(output);
     }
 
-    output += '</body></html>';
-
-    console.log('Generated combined tables from FMP API data');
-    console.log('Sample output (first 500 chars):', output.substring(0, 500));
-
-    res.set('Content-Type', 'text/html');
-    res.send(output);
+    res.json(results);
   } catch (e) {
     console.error('Error fetching data from FMP:', e.message);
-    res.status(500).send(`Error: ${e.message}`);
+    res.status(500).json({ error: e.message });
   }
 });
 
