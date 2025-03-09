@@ -27,6 +27,7 @@ This project provides a tool for scraping financial data using the [Puppeteer](h
 ```
 git clone https://github.com/Djonni0/puppeteer-yahoo-scraper.git
 cd puppeteer-yahoo-scraper
+``
 Install Dependencies
 ```
 npm install
@@ -51,14 +52,15 @@ Income Statement
 Cash Flow Statement
 Docker Usage
 Build the Docker Image
-``` ```
+``` 
 docker build -t puppeteer-yahoo-scraper .
 ```
 Run the Docker Container
-``` ```
-
+```
 docker run -p 3000:3000 puppeteer-yahoo-scraper
+
 Endpoints
+```
 /fetch
 ```
 This endpoint accepts a query parameter ticker and returns the financial data in HTML format.
@@ -66,9 +68,8 @@ This endpoint accepts a query parameter ticker and returns the financial data in
 Example Request:
 
 ```
-Copy
 http://localhost:10000/fetch?ticker=AAPL
-
+```
 Deploying on Render.com
 Render is a platform that can easily deploy Node.js applications. Here’s how you can deploy this application on Render:
 
