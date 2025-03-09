@@ -36,6 +36,7 @@ Start the Application
 bash
 Copy
 npm start
+
 This will start the application on the default port 10000.
 
 Accessing the Scraper
@@ -67,3 +68,27 @@ Example Request:
 bash
 Copy
 http://localhost:10000/fetch?ticker=AAPL
+
+Deploying on Render.com
+Render is a platform that can easily deploy Node.js applications. Here’s how you can deploy this application on Render:
+
+Steps to Deploy:
+Sign up for Render.com: Go to Render.com and sign up for an account.
+
+Create a New Web Service:
+
+Click on the "New" button and choose "Web Service".
+Connect your GitHub repository where this project is stored.
+Configure Your Service:
+
+Environment: Select Node.
+Branch: Choose main (or whichever branch you want to deploy).
+Build Command: apt-get update && apt-get install -y chromium && npm install
+Start Command: node app.js
+Deploy:
+
+Click "Create Web Service", and Render will start building and deploying your app.
+Once the app is deployed, you'll receive a URL from Render where your app will be live.
+Testing:
+
+After the deployment is successful, visit the Render app URL (e.g., https://your-app.onrender.com/fetch?ticker=AAPL) to test if the application is working as expected.
