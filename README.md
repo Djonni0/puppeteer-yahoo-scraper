@@ -24,27 +24,26 @@ This project provides a tool for scraping financial data using the [Puppeteer](h
 
 ### Clone the Repository
 
-```bash
+```
 git clone https://github.com/Djonni0/puppeteer-yahoo-scraper.git
 cd puppeteer-yahoo-scraper
 Install Dependencies
-bash
-Copy
+```
 npm install
+```
 Usage
 Start the Application
-bash
-Copy
+```
 npm start
-
+```
 This will start the application on the default port 10000.
 
 Accessing the Scraper
 To fetch financial data for a stock symbol, use the following URL format:
 
-bash
-Copy
+```
 http://localhost:10000/fetch?ticker=AAPL
+```
 Replace AAPL with the ticker of the company you're interested in. The available financial data types are:
 
 Balance Sheet
@@ -52,20 +51,21 @@ Income Statement
 Cash Flow Statement
 Docker Usage
 Build the Docker Image
-bash
-Copy
+``` ```
 docker build -t puppeteer-yahoo-scraper .
+```
 Run the Docker Container
-bash
-Copy
+``` ```
+
 docker run -p 3000:3000 puppeteer-yahoo-scraper
 Endpoints
 /fetch
+```
 This endpoint accepts a query parameter ticker and returns the financial data in HTML format.
 
 Example Request:
 
-bash
+```
 Copy
 http://localhost:10000/fetch?ticker=AAPL
 
