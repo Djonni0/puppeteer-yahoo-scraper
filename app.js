@@ -12,47 +12,52 @@ if (!FMP_API_KEY) {
 }
 
 app.get('/fetch', async (req, res) => {
-  const { ticker } = req.query; // No dataType needed, fetching all
+  const { ticker, categories } = req.query; // Get ticker and categories from query parameters
+
+  // Default to all categories if none are provided
+  const requestedCategories = categories ? categories.split(',') : ['balance', 'income', 'cash', 'ratios'];
 
   // Define the URLs for financial data (including ratios)
   const urls = {
     balance: `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?apikey=${FMP_API_KEY}`,
     income: `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?apikey=${FMP_API_KEY}`,
     cash: `https://financialmodelingprep.com/api/v3/cash-flow-statement/${ticker}?apikey=${FMP_API_KEY}`,
-    ratios: `https://financialmodelingprep.com/api/v3/financial-ratios/${ticker}?apikey=${FMP_API_KEY}`, // New endpoint for financial ratios
+    ratios: `https://financialmodelingprep.com/api/v3/financial-ratios/${ticker}?apikey=${FMP_API_KEY}`,
   };
 
   try {
-    // Fetch all statements and ratios
+    // Initialize an empty object to store the results
     const results = {};
-    for (const [type, url] of Object.entries(urls)) {
-      console.log(`Fetching ${type} data from: ${url}`);
-      const response = await fetch(url);
-      if (!response.ok) {
-        console.error(`HTTP error for ${type}! status: ${response.status}, text: ${await response.text()}`);
-        throw new Error(`HTTP error for ${type}! status: ${response.status}`);
-      }
-      const data = await response.json();
-      if (!data || data.length === 0) {
-        console.log(`No ${type} data returned from FMP API`);
-        results[type] = [];
-      } else {
-        results[type] = data;
+
+    // Fetch only the requested categories
+    for (const category of requestedCategories) {
+      if (urls[category]) {
+        console.log(`Fetching ${category} data from: ${urls[category]}`);
+        const response = await fetch(urls[category]);
+        if (!response.ok) {
+          console.error(`HTTP error for ${category}! status: ${response.status}`);
+          results[category] = []; // If there's an error, set the category to empty array
+        } else {
+          const data = await response.json();
+          results[category] = data.length > 0 ? data : []; // Store the fetched data or empty array if no data
+        }
       }
     }
 
-    // Build combined HTML output for statements and ratios
+    // Build combined HTML output for requested categories
     let output = '<html><body>';
     
-    // Statements (Balance, Income, Cash)
-    for (const [type, data] of Object.entries(results)) {
-      if (data.length === 0) {
-        output += `<h2>${type.charAt(0).toUpperCase() + type.slice(1)} Statement</h2><p>No data available</p>`;
+    // Loop through the requested categories and generate the output
+    for (const category of requestedCategories) {
+      const data = results[category];
+
+      if (data && data.length === 0) {
+        output += `<h2>${category.charAt(0).toUpperCase() + category.slice(1)} Statement</h2><p>No data available</p>`;
         continue;
       }
 
-      output += `<h2>${type.charAt(0).toUpperCase() + type.slice(1)} Statement</h2>`;
-      output += `<table border="1" id="${type}"><tr><th>Breakdown</th>`;
+      output += `<h2>${category.charAt(0).toUpperCase() + category.slice(1)} Statement</h2>`;
+      output += `<table border="1" id="${category}"><tr><th>Breakdown</th>`;
       const dates = data.map(item => item.date).reverse();
       dates.forEach(date => output += `<th>${date}</th>`);
       output += '</tr>';
@@ -76,31 +81,12 @@ app.get('/fetch', async (req, res) => {
       });
       output += '</table>';
     }
-    
-    // Financial Ratios
-    const ratiosData = results.ratios;
-    if (ratiosData.length > 0) {
-      output += '<h2>Financial Ratios</h2>';
-      output += '<table border="1" id="ratios"><tr><th>Ratio</th><th>Value</th></tr>';
-      
-      ratiosData.forEach(ratio => {
-        Object.entries(ratio).forEach(([key, value]) => {
-          if (typeof value === 'number' && key !== 'symbol') {
-            const ratioName = key.replace(/([A-Z])/g, ' $1').trim();
-            output += `<tr><td>${ratioName}</td><td>${value.toLocaleString()}</td></tr>`;
-          }
-        });
-      });
-      output += '</table>';
-    } else {
-      output += `<h2>Financial Ratios</h2><p>No financial ratios data available</p>`;
-    }
 
     output += '</body></html>';
 
     console.log('Generated combined tables from FMP API data');
     console.log('Sample output (first 500 chars):', output.substring(0, 500));
-    
+
     res.set('Content-Type', 'text/html');
     res.send(output);
   } catch (e) {
