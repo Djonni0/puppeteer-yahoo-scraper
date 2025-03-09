@@ -27,11 +27,12 @@ This project provides a tool for scraping financial data using the [Puppeteer](h
 ```
 git clone https://github.com/Djonni0/puppeteer-yahoo-scraper.git
 cd puppeteer-yahoo-scraper
-``
+```
 Install Dependencies
 ```
 npm install
 ```
+
 Usage
 Start the Application
 ```
